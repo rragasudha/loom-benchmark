@@ -1,0 +1,16 @@
+target/
+*.class
+*.jar
+*.war
+
+.idea/
+*.iml
+.vscode/
+.eclipse/
+
+.env
+*.log
+
+.claude/
+PROJECT_FILES.md
+memory-*.json.txt

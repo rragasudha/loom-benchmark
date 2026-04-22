@@ -1,0 +1,63 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: loom-benchmark
+
+  # -----------------------------------------------------------------------
+  # PHASE 3 BONUS: Global virtual thread switch
+  # -----------------------------------------------------------------------
+  # When set to true, Spring Boot 3.2+ replaces ALL internal thread pools
+  # (Tomcat request threads, @Async executors, scheduled tasks) with virtual
+  # threads. This is the "zero code change" upgrade path.
+  #
+  # Try this:
+  #   1. Run with false: ab -n 1000 -c 200 http://localhost:8080/api/aggregate/classic?sources=50
+  #   2. Run with true:  same command — observe throughput improvement on /classic
+  #      even without code changes, because Tomcat itself now uses virtual threads.
+  #
+  # IMPORTANT: Our /loom endpoint already uses virtual threads regardless of this flag.
+  # This flag upgrades everything else (Tomcat, @Async, scheduling) to virtual threads.
+  threads:
+    virtual:
+      enabled: false  # Change to true for Phase 3 / bonus experiment
+  # -----------------------------------------------------------------------
+
+# Application-specific configuration (bound to AppConfig.java)
+app:
+  thread-pool:
+    # Fixed pool size for the classic executor.
+    # Experiment: reduce to 5 and observe /compare?sources=50 — classic will queue.
+    core-size: 20
+    max-size: 20
+    # Bounded queue: tasks beyond this limit get RejectedExecutionException.
+    # Sized for load tests: 200 VUs × 20 sources = 4000 concurrent tasks max.
+    # 200 run in the pool (20 threads × however many requests fit), the rest queue.
+    # Formula: vus * sources - pool-size = 200 * 20 - 20 = 3980 → round up to 5000.
+    queue-capacity: 5000
+
+  simulation:
+    # Simulated I/O latency range per data source call.
+    # This mimics real-world tail latency (some requests fast, some slow).
+    min-delay-ms: 200
+    max-delay-ms: 800
+
+# Actuator: expose all endpoints for observability during load tests.
+# Useful endpoints:
+#   /actuator/health         — liveness check
+#   /actuator/metrics        — JVM and HTTP metrics
+#   /actuator/metrics/jvm.threads.live  — live thread count (watch this during load tests!)
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,threaddump
+  endpoint:
+    health:
+      show-details: always
+
+logging:
+  level:
+    com.loom.benchmark: INFO   # Change to DEBUG to see per-request thread names in logs
+    root: WARN
